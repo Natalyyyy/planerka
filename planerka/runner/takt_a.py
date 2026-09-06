@@ -1,4 +1,5 @@
 """Такт А: аналитика недели и банк тем без расстановки по дням."""
+import os
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -24,5 +25,7 @@ def takt_a(config: dict, notes_root: Path, blocks_dir: Path, today: date, зов
     каталог = notes_root / "недели"
     каталог.mkdir(parents=True, exist_ok=True)
     путь = каталог / f"неделя – {начало_недели(today)}.md"
-    путь.write_text(ответ.strip() + "\n", encoding="utf-8")
+    временный = путь.with_suffix(путь.suffix + ".tmp")
+    временный.write_text(ответ.strip() + "\n", encoding="utf-8")
+    os.replace(временный, путь)
     return путь

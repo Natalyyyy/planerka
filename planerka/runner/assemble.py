@@ -13,8 +13,8 @@ def _read(path: Path, вид: str, имя: str) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
-def assemble(config: dict, blocks_dir: Path) -> str:
-    core = blocks_dir / "core.md"
+def assemble(config: dict, blocks_dir: Path, ядро: str = "core.md") -> str:
+    core = blocks_dir / ядро
     if not core.exists():
         raise FileNotFoundError(f"нет ядра промпта: ждали {core}")
 

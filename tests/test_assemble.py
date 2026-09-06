@@ -46,3 +46,16 @@ def test_неизвестный_источник_падает_с_понятны�
 def test_нет_ядра_падает(tmp_path):
     with pytest.raises(FileNotFoundError, match="core.md"):
         assemble({"источники": [], "площадки": []}, tmp_path)
+
+
+def test_ядро_можно_переопределить(blocks):
+    (blocks / "core-план.md").write_text("ДРУГОЕ ЯДРО", encoding="utf-8")
+    out = assemble({"источники": [], "площадки": []}, blocks, ядро="core-план.md")
+    assert out.strip() == "ДРУГОЕ ЯДРО"
+
+
+def test_нет_нестандартного_ядра_падает_с_его_именем(tmp_path):
+    (tmp_path / "sources").mkdir(parents=True)
+    (tmp_path / "platforms").mkdir()
+    with pytest.raises(FileNotFoundError, match="core-план.md"):
+        assemble({"источники": [], "площадки": []}, tmp_path, ядро="core-план.md")

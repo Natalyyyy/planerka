@@ -31,8 +31,17 @@ def parse_decisions(text: str) -> dict[str, list[str]]:
             bank_end = i
             break
 
-    # Если раздела "Банк тем" нет, вернуть пустой результат
+    # Если раздела "Банк тем" нет, отслеживаем все строки с галочками
     if bank_start is None:
+        in_code_block = False
+        for line in lines:
+            if line.strip().startswith("```"):
+                in_code_block = not in_code_block
+                continue
+            if in_code_block:
+                continue
+            if СТРОКА_ПРОВЕРКА.match(line.strip()):
+                out["пропущено"].append(line.rstrip())
         return out
 
     # Обработать строки в пределах раздела, пропуская блоки кода
@@ -84,14 +93,33 @@ def parse_decisions(text: str) -> dict[str, list[str]]:
 
         out[состояние].append(тема)
 
-    # Отслеживаем строки с галочками вне раздела Банк тем
+    # Отслеживаем строки с галочками ДО раздела Банк тем
+    in_code_block = False
     for i in range(0, bank_start - 1):
         line = lines[i]
+
+        if line.strip().startswith("```"):
+            in_code_block = not in_code_block
+            continue
+
+        if in_code_block:
+            continue
+
         if СТРОКА_ПРОВЕРКА.match(line.strip()):
             out["пропущено"].append(line.rstrip())
 
+    # Отслеживаем строки с галочками ПОСЛЕ раздела Банк тем
+    in_code_block = False
     for i in range(bank_end, len(lines)):
         line = lines[i]
+
+        if line.strip().startswith("```"):
+            in_code_block = not in_code_block
+            continue
+
+        if in_code_block:
+            continue
+
         if СТРОКА_ПРОВЕРКА.match(line.strip()):
             out["пропущено"].append(line.rstrip())
 

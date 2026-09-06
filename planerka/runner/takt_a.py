@@ -6,6 +6,7 @@ from pathlib import Path
 from .assemble import assemble
 from .collect import collect
 from .llm import run_claude
+from .person import личный_контекст
 
 
 def начало_недели(день: date) -> date:
@@ -14,6 +15,9 @@ def начало_недели(день: date) -> date:
 
 def takt_a(config: dict, notes_root: Path, blocks_dir: Path, today: date, зов=run_claude) -> Path:
     промпт = assemble(config, blocks_dir)
+    личное = личный_контекст(config, notes_root)
+    if личное:
+        промпт += "\n\n" + личное
     контекст = collect(config, notes_root, today)
     for имя, текст in контекст.items():
         промпт += f"\n\n## Источник: {имя}\n{текст}" if текст else f"\n\n## Источник: {имя}\n(пусто)"

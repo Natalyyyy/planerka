@@ -7,6 +7,7 @@ from pathlib import Path
 from .assemble import assemble
 from .decisions import parse_decisions
 from .llm import run_claude
+from .person import личный_контекст
 from .takt_a import начало_недели
 
 ЗАГОЛОВОК = "## Неделя по дням"
@@ -82,6 +83,9 @@ def takt_b(config: dict, notes_root: Path, blocks_dir: Path, today: date, зов
         raise RuntimeError("ни одной взятой темы — план собирать не из чего")
 
     промпт = assemble(config, blocks_dir, ядро="core-план.md")
+    личное = личный_контекст(config, notes_root)
+    if личное:
+        промпт += "\n\n" + личное
     промпт += "\n\n## Взятые темы\n" + "\n".join(f"- {t}" for t in решения["беру"])
     if решения["подумать"]:
         промпт += "\n\n## Отложенные\n" + "\n".join(f"- {t}" for t in решения["подумать"])

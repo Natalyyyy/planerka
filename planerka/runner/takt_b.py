@@ -82,7 +82,7 @@ def takt_b(config: dict, notes_root: Path, blocks_dir: Path, today: date, зов
     if not решения["беру"]:
         raise RuntimeError("ни одной взятой темы — план собирать не из чего")
 
-    промпт = assemble(config, blocks_dir, ядро="core-план.md")
+    промпт = assemble(config, blocks_dir, ядро="core-план.md", с_источниками=False)
     личное = личный_контекст(config, notes_root)
     if личное:
         промпт += "\n\n" + личное

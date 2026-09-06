@@ -22,30 +22,51 @@ def parse_decisions(text: str) -> dict[str, list[str]]:
 
     lines = text.splitlines()
 
+    # Первый проход: найти закрытые блоки кода
+    closed_code_lines = set()
+    in_code_block = False
+    block_start = None
+
+    for i, line in enumerate(lines):
+        if line.strip().startswith("```"):
+            if not in_code_block:
+                block_start = i
+                in_code_block = True
+            else:
+                # Блок закрывается — отметить все строки в нём
+                for j in range(block_start, i + 1):
+                    closed_code_lines.add(j)
+                in_code_block = False
+                block_start = None
+
+    # Второй проход: основной разбор
     in_code_block = False
     in_bank_section = False
 
-    for line in lines:
+    for i, line in enumerate(lines):
         # Переключаем состояние блока кода
         if line.strip().startswith("```"):
             in_code_block = not in_code_block
             continue
 
-        # Пропускаем строки внутри блока кода
+        # Пропускаем строки внутри закрытого блока кода полностью
+        if i in closed_code_lines:
+            continue
+
+        # Если вижу заголовок раздела, закрываю открытый блок
+        if ЗАГОЛОВОК_РАЗДЕЛА.match(line.strip()):
+            in_code_block = False
+            # Проверяем, это ли начало раздела "Банк тем"
+            if ЗАГОЛОВОК_БАНКА.match(line.strip()):
+                in_bank_section = True
+            else:
+                in_bank_section = False
+            continue
+
+        # Если в незакрытом блоке кода и выглядит как решение — в пропущено
         if in_code_block:
-            # Если это выглядит как решение, но в блоке кода, класть в пропущено
             if СТРОКА_ПРОВЕРКА.match(line.strip()):
                 out["пропущено"].append(line.rstrip())
-            continue
-
-        # Проверяем, это ли начало раздела "Банк тем"
-        if ЗАГОЛОВОК_БАНКА.match(line.strip()):
-            in_bank_section = True
-            continue
-
-        # Проверяем, это ли начало другого раздела (##)
-        if ЗАГОЛОВОК_РАЗДЕЛА.match(line.strip()):
-            in_bank_section = False
             continue
 
         # Обработка в зависимости от раздела

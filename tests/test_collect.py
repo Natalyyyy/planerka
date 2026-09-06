@@ -1,5 +1,4 @@
 from datetime import date
-from pathlib import Path
 from planerka.runner.collect import collect
 
 
@@ -53,3 +52,42 @@ def test_нечитаемый_файл_пропускается_а_прогон_
     (tmp_path / "встречи" / "живой.md").write_text("живой текст", encoding="utf-8")
     out = collect(_конфиг(), tmp_path, date(2026, 9, 5))
     assert "живой текст" in out["транскрипты"]
+
+
+def test_две_даты_в_имени_берёт_последнюю(tmp_path):
+    (tmp_path / "встречи").mkdir()
+    (tmp_path / "встречи" / "перенос с 2026-01-01 на 2026-09-01.md").write_text("текст", encoding="utf-8")
+    out = collect(_конфиг(окно=45), tmp_path, date(2026, 9, 5))
+    assert "текст" in out["транскрипты"], "файл с датой 2026-09-01 в конце должен попасть в окно 45 дней"
+
+
+def test_невалидная_дата_не_фильтруется_по_окну(tmp_path):
+    (tmp_path / "встречи").mkdir()
+    (tmp_path / "встречи" / "файл 2026-13-45.md").write_text("невалидная дата", encoding="utf-8")
+    out = collect(_конфиг(окно=7), tmp_path, date(2026, 9, 5))
+    assert "невалидная дата" in out["транскрипты"], "файл с невалидной датой всё равно попадает в выдачу"
+
+
+def test_файл_во_вложенной_папке_попадает(tmp_path):
+    (tmp_path / "встречи").mkdir()
+    (tmp_path / "встречи" / "2026").mkdir()
+    (tmp_path / "встречи" / "2026" / "встреча – 2026-09-01.md").write_text("вложенный файл", encoding="utf-8")
+    out = collect(_конфиг(), tmp_path, date(2026, 9, 5))
+    assert "вложенный файл" in out["транскрипты"], "файл во вложенной подпапке должен найтись"
+
+
+def test_два_источника_с_разными_окнами(tmp_path):
+    (tmp_path / "встречи").mkdir()
+    (tmp_path / "встречи" / "старая – 2026-08-01.md").write_text("для встреч", encoding="utf-8")
+    (tmp_path / "письма").mkdir()
+    (tmp_path / "письма" / "старое – 2026-01-01.md").write_text("для писем", encoding="utf-8")
+
+    config = {"источники": [
+        {"имя": "встречи", "путь": "встречи", "окно_дней": 45},
+        {"имя": "письма", "путь": "письма", "окно_дней": None}
+    ]}
+    out = collect(config, tmp_path, date(2026, 9, 5))
+
+    assert "для встреч" in out["встречи"], "встреча из августа попадает в окно 45 дней"
+    assert "для писем" in out["письма"], "письмо из января всё равно попадает при окне None"
+    assert len(out) == 2, "в результате два источника"

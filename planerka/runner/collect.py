@@ -11,9 +11,10 @@ from pathlib import Path
 
 
 def _дата_из_имени(имя: str) -> date | None:
-    м = ДАТА.search(имя)
-    if not м:
+    совпадения = list(ДАТА.finditer(имя))
+    if not совпадения:
         return None
+    м = совпадения[-1]  # берём последнее совпадение
     try:
         return date(int(м[1]), int(м[2]), int(м[3]))
     except ValueError:

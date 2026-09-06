@@ -8,7 +8,8 @@ import pytest
     "Начальник тоже человек", "Марс", "marsing", "Имба", "ai-native",
     "rasp@", "/home/rasp", "TGStat", "Практикум",
 ]
-ПРОПУСК = {".git", "__pycache__", ".venv", "tests", ".pytest_cache"}
+ПРОПУСК_ПАПОК = {".git", "__pycache__", ".venv", ".pytest_cache"}
+ПРОПУСК_ФАЙЛОВ = {"tests/test_no_author_traces.py"}
 
 ЗАКОННОЕ = {
     (".claude-plugin/marketplace.json", "Наташ"),
@@ -22,7 +23,10 @@ import pytest
 
 def файлы():
     for п in КОРЕНЬ.rglob("*"):
-        if not п.is_file() or any(ч in ПРОПУСК for ч in п.parts):
+        if not п.is_file() or any(ч in ПРОПУСК_ПАПОК for ч in п.parts):
+            continue
+        отн = str(п.relative_to(КОРЕНЬ))
+        if отн in ПРОПУСК_ФАЙЛОВ:
             continue
         if п.suffix not in {".md", ".py", ".json", ".sh", ""}:
             continue

@@ -1,11 +1,11 @@
 """Такт Б: план недели из тем, которые человек взял."""
-import os
 import re
 from datetime import date
 from pathlib import Path
 
 from .assemble import assemble
 from .decisions import parse_decisions
+from .файлы import записать_атомарно
 from .llm import run_claude
 from .person import личный_контекст
 from .weeks import найти_файл_недели
@@ -57,12 +57,6 @@ def _соединить(блоки: list[str]) -> str:
     return текст.rstrip("\n") + "\n" if текст else ""
 
 
-def _записать_атомарно(путь: Path, содержимое: str) -> None:
-    временный = путь.with_suffix(путь.suffix + ".tmp")
-    временный.write_text(содержимое, encoding="utf-8")
-    os.replace(временный, путь)
-
-
 def _вырезать_раздел_недели(ответ: str) -> str:
     """Из ответа модели — только раздел «Неделя по дням», от заголовка.
 
@@ -104,7 +98,7 @@ def _дописать_отклонённые(notes_root: Path, темы: list[st
         новые.append(строка)
     if not новые:
         return
-    _записать_атомарно(отклонённые, f"{прежнее.rstrip()}\n" + "\n".join(новые) + "\n")
+    записать_атомарно(отклонённые, f"{прежнее.rstrip()}\n" + "\n".join(новые) + "\n")
 
 
 def takt_b(config: dict, notes_root: Path, blocks_dir: Path, today: date, зов=run_claude) -> Path:
@@ -184,7 +178,7 @@ def takt_b(config: dict, notes_root: Path, blocks_dir: Path, today: date, зов
     if пропущенные_блок is not None and not пропущенные_вставлены:
         итог.append(пропущенные_блок)
 
-    _записать_атомарно(путь, _соединить(итог))
+    записать_атомарно(путь, _соединить(итог))
 
     if решения["нет"]:
         _дописать_отклонённые(notes_root, решения["нет"], today)

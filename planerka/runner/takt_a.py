@@ -1,11 +1,11 @@
 """Такт А: аналитика недели и банк тем без расстановки по дням."""
-import os
 import shutil
 from datetime import date, timedelta
 from pathlib import Path
 
 from .assemble import assemble
 from .collect import collect
+from .файлы import записать_атомарно
 from .llm import run_claude
 from .person import личный_контекст
 from .weeks import найти_файл_недели, неразобранное, работа_человека
@@ -157,8 +157,6 @@ def takt_a(config: dict, notes_root: Path, blocks_dir: Path, today: date,
     if копия is not None:
         print(f"Прежний файл недели сохранён копией: {копия}")
 
-    временный = путь.with_suffix(путь.suffix + ".tmp")
-    временный.write_text(содержимое, encoding="utf-8")
     _сказать_про_прошлую_неделю(notes_root, путь, копия)
-    os.replace(временный, путь)
+    записать_атомарно(путь, содержимое)
     return путь

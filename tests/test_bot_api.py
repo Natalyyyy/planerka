@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from planerka.bot.api import (
+    ОшибкаКонфликта,
     ОшибкаОтвета,
     ОшибкаСети,
     ОшибкаТелеграма,
@@ -424,6 +425,33 @@ def test_произвольный_4xx_с_описанием_показывает
             получить_обновления(ТОКЕН)
 
     assert "terminated by other getUpdates request" in str(исключение.value)
+
+
+def test_409_даёт_ошибку_конфликта_а_не_обычную_телеграмную():
+    """409 от getUpdates — почти всегда «этого бота уже опрашивает другой
+    процесс» (двойной запуск), а не обычный временный сбой. Отдельный тип
+    исключения даёт bot/процесс.py различить их и не говорить человеку
+    «проблемы с интернетом», когда дело в двух запущенных процессах."""
+    with patch("planerka.bot.api.urlopen") as urlopen:
+        urlopen.side_effect = _http_ошибка(
+            409,
+            {"ok": False, "error_code": 409, "description": "Conflict: terminated by other getUpdates request"},
+        )
+        with pytest.raises(ОшибкаКонфликта) as исключение:
+            получить_обновления(ТОКЕН)
+
+    сообщение = str(исключение.value)
+    assert "terminated by other getUpdates request" in сообщение
+    assert "уже опрашивает" in сообщение.lower()
+    assert isinstance(исключение.value, ОшибкаТелеграма)  # остаётся в семье ОшибкаБота
+
+
+def test_409_без_описания_в_теле_не_падает():
+    with patch("planerka.bot.api.urlopen") as urlopen:
+        urlopen.side_effect = _http_ошибка(409, {"ok": False})
+        with pytest.raises(ОшибкаКонфликта) as исключение:
+            получить_обновления(ТОКЕН)
+    assert "409" in str(исключение.value)
 
 
 def test_4xx_без_описания_в_теле_не_падает_даёт_общий_текст():

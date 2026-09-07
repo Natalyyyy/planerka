@@ -10,6 +10,15 @@ from .llm import run_claude
 from .person import личный_контекст
 from .weeks import найти_файл_недели, неразобранное, работа_человека
 
+try:  # planerka.runner.* — вызов из тестов и из пакета planerka
+    from ..bot.api import ОшибкаБота
+    from ..bot.отправка import отправить_банк_тем
+except ImportError:  # runner.* — вызов как в run.py, планёрка добавляет свой
+    # каталог в sys.path напрямую (см. run.py) — planerka тогда не общий
+    # предок для runner и bot, а два независимых пакета верхнего уровня.
+    from bot.api import ОшибкаБота  # type: ignore[import-not-found]
+    from bot.отправка import отправить_банк_тем  # type: ignore[import-not-found]
+
 
 class РаботаЧеловека(RuntimeError):
     """Файл недели занят работой человека — переписывать его молча нельзя.
@@ -125,7 +134,8 @@ def _сказать_про_прошлую_неделю(notes_root: Path, нов�
 
 
 def takt_a(config: dict, notes_root: Path, blocks_dir: Path, today: date,
-           зов=run_claude, пересобрать: bool = False) -> Path:
+           зов=run_claude, пересобрать: bool = False,
+           бот_токен: str | None = None, бот_chat_id=None) -> Path:
     промпт = assemble(config, blocks_dir)
     личное = личный_контекст(config, notes_root)
     if личное:
@@ -159,4 +169,19 @@ def takt_a(config: dict, notes_root: Path, blocks_dir: Path, today: date,
 
     _сказать_про_прошлую_неделю(notes_root, путь, копия)
     записать_атомарно(путь, содержимое)
+
+    # Бот не настроен (нет токена или chat_id) — молчим и ничего не шлём,
+    # такт А работает ровно так же, как до появления бота. Настроен, но
+    # отправка упала (сеть, протухший токен, Телеграм лёг) — файл недели
+    # уже записан и не теряется; человеку нужно узнать, что кнопки в
+    # телеграме не появились, а не тихо ждать сообщения, которое не придёт.
+    if бот_токен and бот_chat_id:
+        try:
+            отправить_банк_тем(бот_токен, бот_chat_id, notes_root)
+        except ОшибкаБота as ошибка:
+            print(
+                f"Банк тем собран ({путь.name}), но в телеграм не ушёл: {ошибка} "
+                "— откройте файл недели и отметьте темы вручную."
+            )
+
     return путь

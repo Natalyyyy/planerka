@@ -315,3 +315,105 @@ def test_отправить_с_кнопками_пустой_список_ряд
 
     urlopen.assert_not_called()
     assert "ряд" in str(исключение.value).lower()
+
+
+# --- Important 1: потолок ожидания на 429 -------------------------------
+
+
+def test_429_retry_after_в_пределах_потолка_ждёт_и_повторяет():
+    # Дублирует ситуацию из test_429_ждёт_retry_after_и_повторяет, но
+    # уже прицельно на границе с потолком — небольшой retry_after не
+    # должен восприниматься как повод сразу бросить ошибку.
+    with patch("planerka.bot.api.urlopen") as urlopen, \
+            patch("planerka.bot.api.time.sleep") as сон:
+        urlopen.side_effect = [
+            _http_ошибка(429, {"ok": False, "parameters": {"retry_after": 10}}),
+            _успешный_ответ({"ok": True, "result": {"message_id": 11}}),
+        ]
+        результат = отправить_сообщение(ТОКЕН, 123, "привет")
+
+    assert результат == {"message_id": 11}
+    сон.assert_called_once_with(10)
+
+
+def test_429_retry_after_больше_потолка_не_спит_и_даёт_ошибку_с_числом_секунд():
+    # Флуд-контроль Телеграма может попросить ждать сотни секунд — это
+    # долгоживущий процесс, но блокировать вызывающего на минуты молча
+    # нельзя: дедлайн вызова съедается незаметно.
+    with patch("planerka.bot.api.urlopen") as urlopen, \
+            patch("planerka.bot.api.time.sleep") as сон:
+        urlopen.side_effect = _http_ошибка(
+            429, {"ok": False, "parameters": {"retry_after": 300}}
+        )
+        with pytest.raises(ОшибкаТелеграма) as исключение:
+            отправить_сообщение(ТОКЕН, 123, "привет")
+
+    сон.assert_not_called()
+    assert urlopen.call_count == 1  # даже не пытались повторить
+    assert "300" in str(исключение.value)
+
+
+# --- Important 2: описание Телеграма для прочих кодов --------------------
+
+
+def test_400_chat_not_found_даёт_подсказку_написать_боту_первым():
+    with patch("planerka.bot.api.urlopen") as urlopen:
+        urlopen.side_effect = _http_ошибка(
+            400, {"ok": False, "error_code": 400, "description": "Bad Request: chat not found"}
+        )
+        with pytest.raises(ОшибкаТелеграма) as исключение:
+            отправить_сообщение(ТОКЕН, 123, "привет")
+
+    сообщение = str(исключение.value)
+    assert "chat not found" in сообщение
+    assert "написал" in сообщение.lower()  # подсказка: написать боту первым
+    assert "попробуйте позже" not in сообщение
+
+
+def test_403_bot_blocked_даёт_подсказку_разблокировать():
+    with patch("planerka.bot.api.urlopen") as urlopen:
+        urlopen.side_effect = _http_ошибка(
+            403,
+            {"ok": False, "error_code": 403, "description": "Forbidden: bot was blocked by the user"},
+        )
+        with pytest.raises(ОшибкаТелеграма) as исключение:
+            отправить_сообщение(ТОКЕН, 123, "привет")
+
+    сообщение = str(исключение.value)
+    assert "blocked by the user" in сообщение
+    assert "разблокир" in сообщение.lower()
+    assert "попробуйте позже" not in сообщение
+
+
+def test_произвольный_4xx_с_описанием_показывает_описание_телеграма():
+    with patch("planerka.bot.api.urlopen") as urlopen:
+        urlopen.side_effect = _http_ошибка(
+            409,
+            {"ok": False, "error_code": 409, "description": "Conflict: terminated by other getUpdates request"},
+        )
+        with pytest.raises(ОшибкаТелеграма) as исключение:
+            получить_обновления(ТОКЕН)
+
+    assert "terminated by other getUpdates request" in str(исключение.value)
+
+
+def test_4xx_без_описания_в_теле_не_падает_даёт_общий_текст():
+    with patch("planerka.bot.api.urlopen") as urlopen:
+        urlopen.side_effect = _http_ошибка(418, {"ok": False})
+        with pytest.raises(ОшибкаТелеграма) as исключение:
+            отправить_сообщение(ТОКЕН, 123, "привет")
+
+    assert "418" in str(исключение.value)
+
+
+def test_4xx_тело_ошибки_не_json_не_падает_с_трейсбеком():
+    with patch("planerka.bot.api.urlopen") as urlopen:
+        ошибка = HTTPError(
+            url="https://api.telegram.org/botX/x", code=404, msg="Not Found",
+            hdrs=None, fp=io.BytesIO("<html>не json</html>".encode("utf-8")),
+        )
+        urlopen.side_effect = ошибка
+        with pytest.raises(ОшибкаТелеграма) as исключение:
+            отправить_сообщение(ТОКЕН, 123, "привет")
+
+    assert "404" in str(исключение.value)

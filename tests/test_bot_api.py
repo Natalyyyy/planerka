@@ -536,3 +536,89 @@ def test_обычный_ascii_токен_проверку_формы_прохо�
     with patch("planerka.bot.api.urlopen",
                return_value=_успешный_ответ({"ok": True, "result": {"username": "planerka_bot"}})):
         assert проверить_токен(ТОКЕН) == "@planerka_bot"
+
+
+# --- пробел, таб и перенос строки в токене: InvalidURL мимо ловушек
+#
+# Проверка формы ловила не-ASCII, но пробельные и управляющие символы —
+# ASCII, и она их пропускала. Дальше токен уезжал прямо в URL, а
+# `http.client` на таком символе бросает `InvalidURL`, чей текст несёт
+# ВЕСЬ URL — вместе с токеном. `InvalidURL` наследует `HTTPException`, а не
+# `OSError`, поэтому ветка `except (URLError, socket.timeout, TimeoutError)`
+# его не ловила: трейсбек с токеном уходил в stderr, а в долгоживущем
+# процессе бота — печатался каждые пять секунд бесконечно.
+#
+# Сценарий обычный: разбор `.env` снимает пробелы только по краям, а токен,
+# скопированный из перенесённой строки, несёт пробел внутри.
+
+СЕКРЕТ = "AAsecret-eto-vydumannyj-hvost"
+ТОКЕН_С_ПРОБЕЛОМ = f"123456:{СЕКРЕТ} HEADER"
+ТОКЕН_С_ТАБОМ = f"123456:{СЕКРЕТ}\tHEADER"
+ТОКЕН_С_ПЕРЕНОСОМ = f"123456:{СЕКРЕТ}\nHEADER"
+
+
+@pytest.mark.parametrize("токен", [ТОКЕН_С_ПРОБЕЛОМ, ТОКЕН_С_ТАБОМ, ТОКЕН_С_ПЕРЕНОСОМ])
+def test_пробельный_символ_в_токене_ловится_до_сети(токен):
+    with patch("planerka.bot.api.urlopen") as урл:
+        with pytest.raises(ОшибкаТокена):
+            проверить_токен(токен)
+    assert урл.call_count == 0, "проверка формы обязана быть ДО сетевого вызова"
+
+
+@pytest.mark.parametrize("токен", [ТОКЕН_С_ПРОБЕЛОМ, ТОКЕН_С_ТАБОМ, ТОКЕН_С_ПЕРЕНОСОМ])
+def test_текст_ошибки_формы_не_несёт_сам_токен(токен):
+    """Сообщение об испорченном токене человек показывает в чат и в issue —
+    самого токена в нём быть не должно ни куском, ни целиком."""
+    with patch("planerka.bot.api.urlopen"):
+        with pytest.raises(ОшибкаТокена) as поймано:
+            проверить_токен(токен)
+    текст = str(поймано.value)
+    assert СЕКРЕТ not in текст, f"токен утёк в текст ошибки: {текст!r}"
+
+
+@pytest.mark.parametrize("токен", [ТОКЕН_С_ПРОБЕЛОМ, ТОКЕН_С_ТАБОМ, ТОКЕН_С_ПЕРЕНОСОМ])
+def test_токена_нет_нигде_в_трейсбеке_испорченного_токена(токен):
+    """Не только текст самой ошибки: цепочка `__context__`/`__cause__` тоже
+    печатается в stderr целиком, и именно в ней жил URL с токеном."""
+    import traceback
+
+    with patch("planerka.bot.api.urlopen"):
+        with pytest.raises(ОшибкаТокена) as поймано:
+            проверить_токен(токен)
+    трейсбек = "".join(traceback.format_exception(поймано.value))
+    assert СЕКРЕТ not in трейсбек, f"токен утёк в трейсбек:\n{трейсбек}"
+
+
+def test_http_exception_из_недр_клиента_становится_ошибкой_бота():
+    """Пояс поверх подтяжек: даже если однажды до `urlopen` доедет то, что
+    проверка формы не поймала, `HTTPException` (не наследник `OSError`)
+    обязан стать нашей ошибкой, а не улететь трейсбеком наружу."""
+    from http.client import InvalidURL
+
+    def взорвать(*аргументы, **именованные):
+        raise InvalidURL(
+            "URL can't contain control characters. "
+            f"'/bot123456:{СЕКРЕТ} HEADER/getMe' (found at least ' ')"
+        )
+
+    with patch("planerka.bot.api.urlopen", side_effect=взорвать):
+        with pytest.raises(ОшибкаСети) as поймано:
+            проверить_токен(ТОКЕН)
+    assert СЕКРЕТ not in str(поймано.value)
+
+
+def test_http_exception_не_выносит_токен_в_трейсбек():
+    from http.client import InvalidURL
+    import traceback
+
+    def взорвать(*аргументы, **именованные):
+        raise InvalidURL(
+            "URL can't contain control characters. "
+            f"'/bot123456:{СЕКРЕТ} HEADER/getMe' (found at least ' ')"
+        )
+
+    with patch("planerka.bot.api.urlopen", side_effect=взорвать):
+        with pytest.raises(ОшибкаСети) as поймано:
+            проверить_токен(ТОКЕН)
+    трейсбек = "".join(traceback.format_exception(поймано.value))
+    assert СЕКРЕТ not in трейсбек, f"токен утёк в трейсбек:\n{трейсбек}"

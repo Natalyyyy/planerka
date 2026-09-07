@@ -267,3 +267,130 @@ def test_настроечные_команды_не_ломают_прежние(
     with pytest.raises(SystemExit):
         run.main(["план", "--папка", str(заметки / "нет-такой")])
     capsys.readouterr()
+
+
+# --- защита `.env` от гита
+#
+# `.env` с боевым токеном создаётся в ПАПКЕ ЗАМЕТОК человека, а `.gitignore`
+# со строкой `.env` лежал только в репозитории плагина — другое дерево.
+# README и интервью при этом обещали, что «файл уже в .gitignore, в гит он не
+# попадёт». У человека папка заметок — это волт, который коммитится сам, и
+# первый же прогон положил бы токен в историю гита.
+
+
+def _гитигнор(папка):
+    файл = папка / ".gitignore"
+    return файл.read_text(encoding="utf-8") if файл.is_file() else None
+
+
+def test_защитить_env_создаёт_гитигнор_в_папке_заметок(заметки, capsys):
+    _env(заметки, f"TELEGRAM_BOT_TOKEN={ТОКЕН}\n")
+    run.main(["защитить-env", "--папка", str(заметки)])
+    capsys.readouterr()
+    правила = [с.strip() for с in (_гитигнор(заметки) or "").splitlines()]
+    assert ".env" in правила, f"гитигнор папки заметок не прячет .env: {правила}"
+
+
+def test_защитить_env_не_затирает_чужой_гитигнор(заметки, capsys):
+    (заметки / ".gitignore").write_text(".obsidian/\n.DS_Store\n", encoding="utf-8")
+    _env(заметки, f"TELEGRAM_BOT_TOKEN={ТОКЕН}\n")
+    run.main(["защитить-env", "--папка", str(заметки)])
+    capsys.readouterr()
+    текст = _гитигнор(заметки)
+    assert ".obsidian/" in текст and ".DS_Store" in текст, f"чужие правила потеряны: {текст!r}"
+    assert ".env" in [с.strip() for с in текст.splitlines()]
+
+
+def test_защитить_env_без_переноса_в_конце_чужого_файла_не_склеивает_строки(заметки, capsys):
+    (заметки / ".gitignore").write_text(".DS_Store", encoding="utf-8")  # без \n в конце
+    run.main(["защитить-env", "--папка", str(заметки)])
+    capsys.readouterr()
+    правила = [с.strip() for с in _гитигнор(заметки).splitlines()]
+    assert ".DS_Store" in правила and ".env" in правила, правила
+
+
+def test_защитить_env_дважды_не_дублирует_строку(заметки, capsys):
+    run.main(["защитить-env", "--папка", str(заметки)])
+    run.main(["защитить-env", "--папка", str(заметки)])
+    capsys.readouterr()
+    правила = [с.strip() for с in _гитигнор(заметки).splitlines()]
+    assert правила.count(".env") == 1, правила
+
+
+def test_защитить_env_видит_чужую_запись_и_не_дописывает_свою(заметки, capsys):
+    (заметки / ".gitignore").write_text("# секреты\n.env\n", encoding="utf-8")
+    run.main(["защитить-env", "--папка", str(заметки)])
+    правила = [с.strip() for с in _гитигнор(заметки).splitlines()]
+    assert правила.count(".env") == 1, правила
+    assert "уже" in capsys.readouterr().out.lower()
+
+
+def test_защитить_env_говорит_вслух_что_именно_сделал(заметки, capsys):
+    run.main(["защитить-env", "--папка", str(заметки)])
+    вывод = capsys.readouterr().out
+    assert ".gitignore" in вывод and ".env" in вывод, вывод
+
+
+def test_папка_не_под_гитом_говорит_что_файл_всё_равно_секретный(заметки, capsys):
+    assert not (заметки / ".git").exists()
+    run.main(["защитить-env", "--папка", str(заметки)])
+    вывод = capsys.readouterr().out.lower()
+    assert "секрет" in вывод, f"про секретность файла не сказано: {вывод!r}"
+
+
+def test_папка_под_гитом_названа_прямо(заметки, capsys):
+    (заметки / ".git").mkdir()
+    run.main(["защитить-env", "--папка", str(заметки)])
+    вывод = capsys.readouterr().out.lower()
+    assert "гит" in вывод, вывод
+
+
+def test_защитить_env_работает_без_конфига(заметки, capsys):
+    """Интервью зовёт команду в блоке 2 — до токена и до конфига."""
+    assert not (заметки / "конфиг.json").exists()
+    run.main(["защитить-env", "--папка", str(заметки)])
+    capsys.readouterr()
+    assert (заметки / ".gitignore").is_file()
+
+
+def test_защитить_env_не_печатает_сам_токен(заметки, capsys):
+    _env(заметки, f"TELEGRAM_BOT_TOKEN={ТОКЕН}\n")
+    run.main(["защитить-env", "--папка", str(заметки)])
+    напечатано = capsys.readouterr()
+    assert ТОКЕН not in напечатано.out and ТОКЕН not in напечатано.err
+
+
+def test_защитить_env_объявлена_в_списке_команд():
+    assert "защитить-env" in run.КОМАНДЫ
+
+
+def test_проверить_бота_попутно_прячет_env_от_гита(заметки, monkeypatch, capsys):
+    """Сеть безопасности: интервью ведёт живая модель, и шаг «спрятать .env»
+    она может пропустить. Команда, которую интервью зовёт сразу после записи
+    токена, прячет файл сама."""
+    _env(заметки, f"TELEGRAM_BOT_TOKEN={ТОКЕН}\n")
+    monkeypatch.setattr(run, "проверить_токен", lambda _: "@planerka_bot")
+    run.main(["проверить-бота", "--папка", str(заметки)])
+    capsys.readouterr()
+    assert ".env" in [с.strip() for с in (_гитигнор(заметки) or "").splitlines()]
+
+
+def test_такт_темы_попутно_прячет_env_от_гита(заметки, monkeypatch, capsys):
+    (заметки / "конфиг.json").write_text(
+        json.dumps({"модель": "m", "папка_заметок": str(заметки)}), encoding="utf-8")
+    _env(заметки, f"TELEGRAM_BOT_TOKEN={ТОКЕН}\nTELEGRAM_CHAT_ID=1\n")
+    monkeypatch.setitem(run.ТАКТЫ, "темы", lambda *а, **к: заметки / "неделя.md")
+    run.main(["темы", "--папка", str(заметки)])
+    capsys.readouterr()
+    assert ".env" in [с.strip() for с in (_гитигнор(заметки) or "").splitlines()]
+
+
+def test_без_env_файла_гитигнор_не_заводится_сам_собой(заметки, monkeypatch, capsys):
+    """Бота не настраивали — планёрке нечего прятать, и лишний файл в чужой
+    папке она не создаёт."""
+    (заметки / "конфиг.json").write_text(
+        json.dumps({"модель": "m", "папка_заметок": str(заметки)}), encoding="utf-8")
+    monkeypatch.setitem(run.ТАКТЫ, "темы", lambda *а, **к: заметки / "неделя.md")
+    run.main(["темы", "--папка", str(заметки)])
+    capsys.readouterr()
+    assert not (заметки / ".gitignore").exists()

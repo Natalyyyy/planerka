@@ -60,11 +60,13 @@ def test_отправить_сообщение_happy():
     assert запрос[0].full_url == f"https://api.telegram.org/bot{ТОКЕН}/sendMessage"
 
 
-def test_отправить_с_кнопками_happy():
+def test_отправить_с_кнопками_happy_несколько_рядов():
+    # Раскладка явная: вызывающий сам решает форму (список рядов), клиент
+    # не разбивает плоский список на строки самостоятельно.
     with patch("planerka.bot.api.urlopen") as urlopen:
         urlopen.return_value = _успешный_ответ({"ok": True, "result": {"message_id": 2}})
         результат = отправить_с_кнопками(
-            ТОКЕН, 123, "выбирайте", [("Да", "yes"), ("Нет", "no")]
+            ТОКЕН, 123, "выбирайте", [[("Да", "yes")], [("Нет", "no")]]
         )
 
     assert результат == {"message_id": 2}
@@ -73,6 +75,28 @@ def test_отправить_с_кнопками_happy():
     assert отправленный["reply_markup"]["inline_keyboard"] == [
         [{"text": "Да", "callback_data": "yes"}],
         [{"text": "Нет", "callback_data": "no"}],
+    ]
+
+
+def test_отправить_с_кнопками_один_ряд_из_трёх_кнопок():
+    # Сценарий «беру / подумать / нет» — один горизонтальный ряд,
+    # с телефона одно движение, а не три промаха по столбику.
+    with patch("planerka.bot.api.urlopen") as urlopen:
+        urlopen.return_value = _успешный_ответ({"ok": True, "result": {"message_id": 4}})
+        результат = отправить_с_кнопками(
+            ТОКЕН, 123, "берёте тему?",
+            [[("беру", "take"), ("подумать", "think"), ("нет", "no")]],
+        )
+
+    assert результат == {"message_id": 4}
+    запрос, _ = urlopen.call_args
+    отправленный = json.loads(запрос[0].data)
+    assert отправленный["reply_markup"]["inline_keyboard"] == [
+        [
+            {"text": "беру", "callback_data": "take"},
+            {"text": "подумать", "callback_data": "think"},
+            {"text": "нет", "callback_data": "no"},
+        ]
     ]
 
 
@@ -97,14 +121,22 @@ def test_получить_обновления_happy():
     assert обновления == [{"update_id": 1}, {"update_id": 2}]
 
 
-def test_проверить_токен_happy():
+def test_проверить_токен_happy_возвращает_username_с_собачкой():
+    # @username — то, что человек видит в @BotFather и по чему узнаёт
+    # бота однозначно; first_name он мог задать любым и не помнит.
     with patch("planerka.bot.api.urlopen") as urlopen:
         urlopen.return_value = _успешный_ответ(
-            {"ok": True, "result": {"id": 1, "is_bot": True, "first_name": "Планёрка"}}
+            {
+                "ok": True,
+                "result": {
+                    "id": 1, "is_bot": True,
+                    "first_name": "Планёрка", "username": "planerka_bot",
+                },
+            }
         )
         имя = проверить_токен(ТОКЕН)
 
-    assert имя == "Планёрка"
+    assert имя == "@planerka_bot"
 
 
 # --- edge --------------------------------------------------------------
@@ -150,15 +182,17 @@ def test_получить_обновления_передаёт_смещение
     assert именованные["timeout"] == 10  # 5 + запас на сетевой таймаут
 
 
-def test_отправить_с_кнопками_пустой_список_не_падает():
+def test_проверить_токен_без_username_возвращает_first_name_с_пометкой():
+    # Отсутствие username не должно молча подсовывать first_name как
+    # будто это и есть username — пометка обязана быть видна в строке.
     with patch("planerka.bot.api.urlopen") as urlopen:
-        urlopen.return_value = _успешный_ответ({"ok": True, "result": {"message_id": 3}})
-        результат = отправить_с_кнопками(ТОКЕН, 123, "текст", [])
+        urlopen.return_value = _успешный_ответ(
+            {"ok": True, "result": {"id": 1, "is_bot": True, "first_name": "Планёрка"}}
+        )
+        имя = проверить_токен(ТОКЕН)
 
-    assert результат == {"message_id": 3}
-    запрос, _ = urlopen.call_args
-    отправленный = json.loads(запрос[0].data)
-    assert отправленный["reply_markup"]["inline_keyboard"] == []
+    assert имя == "Планёрка (без @username)"
+    assert not имя.startswith("@")
 
 
 # --- error ---------------------------------------------------------------
@@ -269,3 +303,15 @@ def test_ok_false_даёт_ошибку_с_описанием_телеграма
             отправить_сообщение(ТОКЕН, 123, "привет")
 
     assert "chat not found" in str(исключение.value)
+
+
+def test_отправить_с_кнопками_пустой_список_рядов_даёт_понятную_ошибку():
+    # Пустой список рядов — ошибка кода, вызвавшего функцию, а не
+    # повод молча отправить сообщение без клавиатуры: HTTP-вызова быть
+    # не должно вообще.
+    with patch("planerka.bot.api.urlopen") as urlopen:
+        with pytest.raises(ValueError) as исключение:
+            отправить_с_кнопками(ТОКЕН, 123, "текст", [])
+
+    urlopen.assert_not_called()
+    assert "ряд" in str(исключение.value).lower()

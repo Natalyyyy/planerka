@@ -11,12 +11,12 @@ from .person import личный_контекст
 from .weeks import найти_файл_недели, неразобранное, работа_человека
 
 try:  # planerka.runner.* — вызов из тестов и из пакета planerka
-    from ..bot.api import ОшибкаБота
+    from ..bot.api import ОшибкаБота, проверить_токен
     from ..bot.отправка import отправить_банк_тем
 except ImportError:  # runner.* — вызов как в run.py, планёрка добавляет свой
     # каталог в sys.path напрямую (см. run.py) — planerka тогда не общий
     # предок для runner и bot, а два независимых пакета верхнего уровня.
-    from bot.api import ОшибкаБота  # type: ignore[import-not-found]
+    from bot.api import ОшибкаБота, проверить_токен  # type: ignore[import-not-found]
     from bot.отправка import отправить_банк_тем  # type: ignore[import-not-found]
 
 
@@ -135,7 +135,8 @@ def _сказать_про_прошлую_неделю(notes_root: Path, нов�
 
 def takt_a(config: dict, notes_root: Path, blocks_dir: Path, today: date,
            зов=run_claude, пересобрать: bool = False,
-           бот_токен: str | None = None, бот_chat_id=None) -> Path:
+           бот_токен: str | None = None, бот_chat_id=None,
+           бот_токен_из_окружения: bool = False) -> Path:
     промпт = assemble(config, blocks_dir)
     личное = личный_контекст(config, notes_root)
     if личное:
@@ -176,6 +177,23 @@ def takt_a(config: dict, notes_root: Path, blocks_dir: Path, today: date,
     # уже записан и не теряется; человеку нужно узнать, что кнопки в
     # телеграме не появились, а не тихо ждать сообщения, которое не придёт.
     if бот_токен and бот_chat_id:
+        if бот_токен_из_окружения:
+            # Токен взят из переменной окружения процесса, не из .env
+            # папки заметок (см. run.py, _разрешить_переменную_бота) — в
+            # шелле человека может годами жить токен ДРУГОГО бота от
+            # другой задачи, и банк тем уйдёт не туда молча. Называем
+            # бота по имени (проверить_токен зовёт getMe), чтобы человек
+            # увидел, куда именно отправляется, ДО того как решит, что
+            # что-то пошло не так.
+            try:
+                имя_бота = проверить_токен(бот_токен)
+                print(
+                    f"Токен бота взят из переменной окружения TELEGRAM_BOT_TOKEN, "
+                    f"не из .env папки заметок — отправляю банк тем боту {имя_бота}. "
+                    "Не тот бот — положите правильный токен в .env папки заметок."
+                )
+            except ОшибкаБота:
+                pass  # не смогли даже узнать имя бота — саму отправку это не должно останавливать
         try:
             отправить_банк_тем(бот_токен, бот_chat_id, notes_root)
         except ОшибкаБота as ошибка:

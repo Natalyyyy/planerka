@@ -17,6 +17,7 @@
 """
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -26,12 +27,22 @@ from unittest.mock import Mock, patch
 import pytest
 
 from planerka.bot.api import ОшибкаКонфликта, ОшибкаСети, ОшибкаТокена
-from planerka.bot.процесс import запустить_бота
+from planerka.bot.процесс import _файл_блокировки, запустить_бота
 from planerka.bot.темы import идентификатор
 from planerka.runner.takt_b import takt_b
 
 ТОКЕН = "444444:ВЫДУМАННЫЙ-ТОКЕН-НЕ-НАСТОЯЩИЙ"
 CHAT_ID = 999999
+
+
+@pytest.fixture(autouse=True)
+def изолированный_дом(tmp_path, monkeypatch):
+    """Лок бота живёт в `~/.planerka/` (см. `bot/процесс.py`, раздел «Один
+    процесс на папку заметок») — без этой подмены каждый тест в этом файле
+    писал бы НАСТОЯЩИЙ лок-файл в домашний каталог того, кто гоняет тесты.
+    `Path.home()` на POSIX читает `$HOME` живьём при каждом вызове (не
+    кэширует на импорте), так что monkeypatch виден сразу."""
+    monkeypatch.setenv("HOME", str(tmp_path / "фейковый-дом"))
 
 
 @pytest.fixture
@@ -490,8 +501,9 @@ def test_run_бот_читает_токен_и_chat_id_из_окружения_�
     модуль = _загрузить_run_модуль()
     вызвано = {}
 
-    def фейковый_запуск(токен, chat_id, notes_root, config, blocks_dir):
+    def фейковый_запуск(токен, chat_id, notes_root, config, blocks_dir, **kwargs):
         вызвано["аргументы"] = (токен, chat_id, notes_root, config, blocks_dir)
+        вызвано["kwargs"] = kwargs
 
     monkeypatch.setattr(модуль, "запустить_бота", фейковый_запуск)
 
@@ -503,6 +515,7 @@ def test_run_бот_читает_токен_и_chat_id_из_окружения_�
     assert notes_root == заметки
     assert config["модель"] == "claude-sonnet-5"
     assert blocks_dir == модуль.КОРЕНЬ / "blocks"
+    assert вызвано["kwargs"] == {"обойти_блокировку": False}
 
 
 def test_run_бот_без_токена_понятная_ошибка(tmp_path, monkeypatch, capsys):
@@ -664,10 +677,17 @@ def test_смена_дедлайна_в_конфиге_срабатывает_з
 # --- пункт 4: два процесса разом -------------------------------------------
 
 
+def _записать_лок(заметки: Path, pid: int, запущен: datetime) -> Path:
+    файл = _файл_блокировки(заметки)
+    файл.parent.mkdir(parents=True, exist_ok=True)
+    файл.write_text(json.dumps({"pid": pid, "запущен": запущен.isoformat()}), encoding="utf-8")
+    return файл
+
+
 def test_второй_процесс_не_стартует_если_первый_ещё_жив(заметки):
     сторонний = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
     try:
-        (заметки / ".бот.lock").write_text(str(сторонний.pid), encoding="utf-8")
+        _записать_лок(заметки, сторонний.pid, datetime.now())
         with pytest.raises(SystemExit) as вылет:
             запустить_бота(
                 ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
@@ -683,7 +703,7 @@ def test_второй_процесс_не_стартует_если_первый
 def test_второй_процесс_ошибка_называет_другой_процесс_а_не_молчит(заметки, capsys):
     сторонний = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
     try:
-        (заметки / ".бот.lock").write_text(str(сторонний.pid), encoding="utf-8")
+        _записать_лок(заметки, сторонний.pid, datetime.now())
         with pytest.raises(SystemExit):
             запустить_бота(
                 ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
@@ -700,7 +720,7 @@ def test_второй_процесс_ошибка_называет_другой_
 def test_лок_от_мёртвого_процесса_не_блокирует_новый_запуск(заметки):
     мёртвый = subprocess.Popen([sys.executable, "-c", "pass"])
     мёртвый.wait()  # уже завершился — pid никому больше не принадлежит
-    (заметки / ".бот.lock").write_text(str(мёртвый.pid), encoding="utf-8")
+    _записать_лок(заметки, мёртвый.pid, datetime.now())
     получить = Mock(return_value=[])
     запустить_бота(
         ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
@@ -711,31 +731,34 @@ def test_лок_от_мёртвого_процесса_не_блокирует_�
 
 
 def test_лок_освобождается_после_остановки(заметки):
+    путь_лока = _файл_блокировки(заметки)
     запустить_бота(
         ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
         получить_обновления=Mock(return_value=[]),
         макс_итераций=1,
     )
-    assert not (заметки / ".бот.lock").exists()
+    assert not путь_лока.exists()
 
 
 def test_лок_освобождается_после_ctrl_c(заметки):
+    путь_лока = _файл_блокировки(заметки)
     запустить_бота(
         ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
         получить_обновления=Mock(side_effect=KeyboardInterrupt()),
         макс_итераций=5,
     )
-    assert not (заметки / ".бот.lock").exists()
+    assert not путь_лока.exists()
 
 
 def test_лок_освобождается_после_протухшего_токена(заметки):
+    путь_лока = _файл_блокировки(заметки)
     with pytest.raises(SystemExit):
         запустить_бота(
             ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
             получить_обновления=Mock(side_effect=ОшибкаТокена("протух")),
             макс_итераций=1,
         )
-    assert not (заметки / ".бот.lock").exists()
+    assert not путь_лока.exists()
 
 
 def test_конфликт_409_даёт_понятное_сообщение_а_не_обычную_сетевую(заметки, capsys):
@@ -1014,3 +1037,424 @@ def test_маркер_дедлайна_битый_json_не_роняет_шлё�
         макс_итераций=1,
     )
     отправить.assert_called_once()  # битый маркер — не повод молчать
+
+
+# ===========================================================================
+# Раунд починки 2 (переревью: 12 выживших подделок + 5 новых шероховатостей)
+# ===========================================================================
+
+
+# --- пункт 1: лок переехал в ~/.planerka/, две папки не мешают друг другу -
+
+
+def test_две_папки_заметок_получают_разные_лок_файлы(tmp_path):
+    папка_а = tmp_path / "а"
+    папка_б = tmp_path / "б"
+    папка_а.mkdir()
+    папка_б.mkdir()
+    лок_а = _файл_блокировки(папка_а)
+    лок_б = _файл_блокировки(папка_б)
+    assert лок_а != лок_б
+    assert лок_а.parent == лок_б.parent == Path(os.environ["HOME"]) / ".planerka"
+    assert лок_а.parent != папка_а  # не внутри папки заметок
+
+
+def test_два_бота_на_разные_папки_не_мешают_друг_другу(tmp_path):
+    заметки_а = tmp_path / "заметки-а"
+    заметки_б = tmp_path / "заметки-б"
+    (заметки_а / "недели").mkdir(parents=True)
+    (заметки_б / "недели").mkdir(parents=True)
+
+    сторонний = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        # Лок папки А занят живым процессом — папку Б это не касается.
+        файл_лока_а = _файл_блокировки(заметки_а)
+        файл_лока_а.parent.mkdir(parents=True, exist_ok=True)
+        файл_лока_а.write_text(
+            json.dumps({"pid": сторонний.pid, "запущен": datetime.now().isoformat()}),
+            encoding="utf-8",
+        )
+        получить = Mock(return_value=[])
+        запустить_бота(
+            ТОКЕН, CHAT_ID, заметки_б, {"модель": "claude-sonnet-5"}, заметки_б / "blocks",
+            получить_обновления=получить,
+            макс_итераций=1,
+        )
+        assert получить.call_count == 1  # папка Б запустилась нормально
+    finally:
+        сторонний.terminate()
+        сторонний.wait(timeout=5)
+
+
+# --- пункт 2: устаревший лок и флаг обхода ---------------------------------
+
+
+def test_старый_лок_живого_но_чужого_pid_считается_устаревшим(заметки):
+    """Живой процесс есть, но лок записан в 2000 году — заведомо раньше,
+    чем стартовал ЛЮБОЙ процесс, живой сейчас. Значит текущий держатель
+    этого pid стартовал позже лока — он не тот, кто его писал."""
+    сторонний = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        файл = _файл_блокировки(заметки)
+        файл.parent.mkdir(parents=True, exist_ok=True)
+        файл.write_text(
+            json.dumps({"pid": сторонний.pid, "запущен": datetime(2000, 1, 1).isoformat()}),
+            encoding="utf-8",
+        )
+        получить = Mock(return_value=[])
+        запустить_бота(
+            ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
+            получить_обновления=получить,
+            макс_итераций=1,
+        )
+        assert получить.call_count == 1  # устаревший лок не заблокировал запуск
+    finally:
+        сторонний.terminate()
+        сторонний.wait(timeout=5)
+
+
+def test_свежий_лок_живого_pid_блокирует_несмотря_на_живость(заметки):
+    """Контраст к предыдущему тесту: лок только что записан (момент —
+    сейчас) и pid жив — блокирует, хотя формально это тот же «живой pid»,
+    что и в подделке с pid 1 из живой проверки координатора."""
+    сторонний = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        файл = _файл_блокировки(заметки)
+        файл.parent.mkdir(parents=True, exist_ok=True)
+        файл.write_text(
+            json.dumps({"pid": сторонний.pid, "запущен": datetime.now().isoformat()}),
+            encoding="utf-8",
+        )
+        with pytest.raises(SystemExit):
+            запустить_бота(
+                ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
+                получить_обновления=Mock(return_value=[]),
+                макс_итераций=1,
+            )
+    finally:
+        сторонний.terminate()
+        сторонний.wait(timeout=5)
+
+
+def test_обойти_блокировку_захватывает_лок_несмотря_на_живой_процесс(заметки):
+    сторонний = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        файл = _файл_блокировки(заметки)
+        файл.parent.mkdir(parents=True, exist_ok=True)
+        файл.write_text(
+            json.dumps({"pid": сторонний.pid, "запущен": datetime.now().isoformat()}),
+            encoding="utf-8",
+        )
+        получить = Mock(return_value=[])
+        запустить_бота(
+            ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
+            получить_обновления=получить,
+            макс_итераций=1,
+            обойти_блокировку=True,
+        )
+        assert получить.call_count == 1
+    finally:
+        сторонний.terminate()
+        сторонний.wait(timeout=5)
+
+
+def test_run_бот_обойти_блокировку_передаётся_в_запустить_бота(tmp_path, monkeypatch):
+    заметки = _заметки_с_конфигом(tmp_path)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "555555:ВЫДУМАННЫЙ-ТОКЕН")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "777")
+    модуль = _загрузить_run_модуль()
+    вызвано = {}
+
+    def фейк(*a, **k):
+        вызвано["kwargs"] = k
+
+    monkeypatch.setattr(модуль, "запустить_бота", фейк)
+    модуль.main(["бот", "--папка", str(заметки), "--обойти-блокировку"])
+    assert вызвано["kwargs"]["обойти_блокировку"] is True
+
+
+def test_run_обойти_блокировку_с_другим_тактом_понятная_ошибка(tmp_path, capsys):
+    заметки = _заметки_с_конфигом(tmp_path)
+    модуль = _загрузить_run_модуль()
+    with pytest.raises(SystemExit):
+        модуль.main(["темы", "--папка", str(заметки), "--обойти-блокировку"])
+    вывод = capsys.readouterr()
+    assert "--обойти-блокировку" in вывод.err
+
+
+# --- пункт 3: приоритет .env папки заметок, disclosure строкой из окружения
+
+
+def test_env_файл_папки_заметок_приоритетнее_переменной_окружения(tmp_path, monkeypatch):
+    заметки = _заметки_с_конфигом(tmp_path)
+    (заметки / ".env").write_text(
+        "TELEGRAM_BOT_TOKEN=111111:ИЗ-ENV-ФАЙЛА\nTELEGRAM_CHAT_ID=1\n", encoding="utf-8",
+    )
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "222222:ИЗ-ОКРУЖЕНИЯ")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "2")
+    модуль = _загрузить_run_модуль()
+    вызвано = {}
+
+    def фейковый_такт(config, notes_root, blocks_dir, today, **kwargs):
+        вызвано["kwargs"] = kwargs
+        файл = notes_root / "недели" / "неделя – 2026-09-07.md"
+        файл.parent.mkdir(parents=True, exist_ok=True)
+        файл.write_text("## Банк тем\n\n- [ ] Тема\n", encoding="utf-8")
+        return файл
+
+    модуль.ТАКТЫ["темы"] = фейковый_такт
+    модуль.main(["темы", "--папка", str(заметки)])
+    assert вызвано["kwargs"]["бот_токен"] == "111111:ИЗ-ENV-ФАЙЛА"
+    assert вызвано["kwargs"]["бот_токен_из_окружения"] is False
+
+
+def test_без_env_файла_токен_из_окружения_помечен_флагом(tmp_path, monkeypatch):
+    заметки = _заметки_с_конфигом(tmp_path)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "222222:ИЗ-ОКРУЖЕНИЯ")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "2")
+    модуль = _загрузить_run_модуль()
+    вызвано = {}
+
+    def фейковый_такт(config, notes_root, blocks_dir, today, **kwargs):
+        вызвано["kwargs"] = kwargs
+        файл = notes_root / "недели" / "неделя – 2026-09-07.md"
+        файл.parent.mkdir(parents=True, exist_ok=True)
+        файл.write_text("## Банк тем\n\n- [ ] Тема\n", encoding="utf-8")
+        return файл
+
+    модуль.ТАКТЫ["темы"] = фейковый_такт
+    модуль.main(["темы", "--папка", str(заметки)])
+    assert вызвано["kwargs"]["бот_токен_из_окружения"] is True
+
+
+# --- пункт 4: PermissionError не даёт голый трейсбек -----------------------
+
+
+def test_нет_прав_на_каталог_блокировки_понятное_сообщение(заметки, capsys):
+    каталог = Path(os.environ["HOME"]) / ".planerka"
+    каталог.mkdir(parents=True, exist_ok=True)
+    os.chmod(каталог, 0o500)
+    try:
+        with pytest.raises(SystemExit):
+            запустить_бота(
+                ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
+                получить_обновления=Mock(return_value=[]),
+                макс_итераций=1,
+            )
+        вывод = capsys.readouterr()
+        assert "трейсбек" not in (вывод.out + вывод.err).lower()
+        assert "прав" in (вывод.out + вывод.err).lower()
+    finally:
+        os.chmod(каталог, 0o700)
+
+
+def test_нет_прав_на_запись_маркера_дедлайна_понятное_сообщение(мир_с_блоками, capsys):
+    заметки, блоки = мир_с_блоками
+    _записать_неделю(заметки, "## Банк тем\n\n- [x] Взятая тема · откуда: чат\n")
+    config = {"модель": "claude-sonnet-5", "дедлайн_такта_б": "среда, 20:00"}
+    недели_каталог = заметки / "недели"
+    os.chmod(недели_каталог, 0o500)
+    try:
+        запустить_бота(
+            ТОКЕН, CHAT_ID, заметки, config, блоки,
+            получить_обновления=Mock(return_value=[]),
+            отправить_сообщение=Mock(),
+            собрать_план=Mock(return_value=недели_каталог / "неделя – 2026-09-07.md"),
+            now=Mock(return_value=datetime(2026, 9, 9, 20, 0, 1)),
+            макс_итераций=1,
+        )
+        вывод = capsys.readouterr()
+        assert "недоступна для записи" in (вывод.out + вывод.err).lower()
+        assert "Traceback" not in вывод.err
+    finally:
+        os.chmod(недели_каталог, 0o700)
+
+
+# --- пункт 5: неожиданное исключение не роняет процесс ---------------------
+
+
+def test_неожиданное_исключение_на_опросе_не_роняет_процесс(заметки):
+    получить = Mock(side_effect=[ConnectionResetError("сброшено"), []])
+    запустить_бота(
+        ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
+        получить_обновления=получить,
+        макс_итераций=2,
+    )
+    assert получить.call_count == 2  # процесс не упал
+
+
+def test_неожиданное_исключение_в_дедлайне_не_роняет_процесс(мир_с_блоками):
+    заметки, блоки = мир_с_блоками
+    _записать_неделю(заметки, "## Банк тем\n\n- [x] Взятая тема · откуда: чат\n")
+    config = {"модель": "claude-sonnet-5", "дедлайн_такта_б": "среда, 20:00"}
+    получить = Mock(return_value=[])
+    отправить = Mock(side_effect=ValueError("что-то не так"))
+    запустить_бота(
+        ТОКЕН, CHAT_ID, заметки, config, блоки,
+        получить_обновления=получить,
+        отправить_сообщение=отправить,
+        собрать_план=_план_с_фейковой_моделью,
+        now=Mock(return_value=datetime(2026, 9, 9, 20, 0, 1)),
+        макс_итераций=3,
+    )
+    assert получить.call_count == 3  # процесс не упал
+
+
+def test_ctrl_c_всё_ещё_работает_после_добавления_широкого_except(заметки, capsys):
+    """Регрессия: широкий except Exception не должен перехватить
+    KeyboardInterrupt — она не наследник Exception, но лучше перепроверить
+    после того, как вложенность try/except выросла на уровень."""
+    запустить_бота(
+        ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
+        получить_обновления=Mock(side_effect=KeyboardInterrupt()),
+        макс_итераций=5,
+    )
+    вывод = capsys.readouterr()
+    assert "остановлен" in (вывод.out + вывод.err).lower()
+
+
+# --- пункт 6: пять дыр в тестах --------------------------------------------
+
+
+def test_лок_файл_реально_создаётся_во_время_работы(заметки):
+    путь_лока = _файл_блокировки(заметки)
+    видел_существование = []
+
+    def получить(*a, **k):
+        видел_существование.append(путь_лока.exists())
+        return []
+
+    запустить_бота(
+        ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
+        получить_обновления=получить,
+        макс_итераций=1,
+    )
+    assert видел_существование == [True]
+    assert not путь_лока.exists()
+
+
+def test_run_темы_передаёт_токен_и_chat_id_в_такт(tmp_path, monkeypatch):
+    заметки = _заметки_с_конфигом(tmp_path)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "555555:ВЫДУМАННЫЙ-ТОКЕН")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "777")
+    модуль = _загрузить_run_модуль()
+    вызвано = {}
+
+    def фейковый_такт(config, notes_root, blocks_dir, today, **kwargs):
+        вызвано["kwargs"] = kwargs
+        файл = notes_root / "недели" / "неделя – 2026-09-07.md"
+        файл.parent.mkdir(parents=True, exist_ok=True)
+        файл.write_text("## Банк тем\n\n- [ ] Тема\n", encoding="utf-8")
+        return файл
+
+    модуль.ТАКТЫ["темы"] = фейковый_такт
+    модуль.main(["темы", "--папка", str(заметки)])
+    assert вызвано["kwargs"].get("бот_токен") == "555555:ВЫДУМАННЫЙ-ТОКЕН"
+    assert вызвано["kwargs"].get("бот_chat_id") == "777"
+
+
+def test_смещение_сохраняется_после_конфликта_409(заметки):
+    получить = Mock(side_effect=[
+        [{"update_id": 70, "callback_query": {"id": "c1", "data": "x"}}],
+        ОшибкаКонфликта("конфликт"),
+        [],
+    ])
+    запустить_бота(
+        ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
+        получить_обновления=получить,
+        принять_нажатие=Mock(),
+        sleep=Mock(),
+        макс_итераций=3,
+    )
+    вызовы = получить.call_args_list
+    assert вызовы[1].kwargs["смещение"] == 71
+    assert вызовы[2].kwargs["смещение"] == 71  # конфликт не стёр смещение
+
+
+def test_пауза_после_конфликта_409(заметки):
+    получить = Mock(side_effect=[ОшибкаКонфликта("конфликт"), []])
+    sleep = Mock()
+    запустить_бота(
+        ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
+        получить_обновления=получить,
+        sleep=sleep,
+        макс_итераций=2,
+    )
+    sleep.assert_called_once()  # без паузы второй процесс молотил бы Телеграм в тугой петле
+
+
+def test_обновления_не_итерируемое_не_роняет_процесс(заметки, capsys):
+    получить = Mock(side_effect=[42, None, []])
+    запустить_бота(
+        ТОКЕН, CHAT_ID, заметки, {"модель": "claude-sonnet-5"}, заметки / "blocks",
+        получить_обновления=получить,
+        макс_итераций=3,
+    )
+    assert получить.call_count == 3  # ни int, ни None не уронили процесс
+    вывод = capsys.readouterr()
+    # Дословная фраза именно точечной проверки на список (не общего
+    # except Exception на уровне итерации — тот дал бы совсем другой текст,
+    # включающий слово "int" тоже, но не эту фразу целиком).
+    assert вывод.err.count("не список обновлений") == 2  # по разу на int и на None
+
+
+def test_дедлайн_с_невозможным_временем_не_падает(заметки, capsys):
+    config = {"модель": "claude-sonnet-5", "дедлайн_такта_б": "среда, 25:99"}
+    запустить_бота(
+        ТОКЕН, CHAT_ID, заметки, config, заметки / "blocks",
+        получить_обновления=Mock(return_value=[]),
+        макс_итераций=1,
+    )
+    вывод = capsys.readouterr()
+    assert "25:99" in вывод.err  # предупреждение, а не трейсбек
+    assert "Traceback" not in вывод.err
+
+
+# --- пункт 7: мелочи из живой проверки --------------------------------------
+
+
+def test_маркер_уведомлён_строкой_false_не_считается_уведомлённым(мир_с_блоками):
+    заметки, блоки = мир_с_блоками
+    путь = _записать_неделю(заметки, "## Банк тем\n\n- [x] Взятая тема · откуда: чат\n")
+    (заметки / "недели" / f"{путь.stem}.дедлайн-обработан.json").write_text(
+        json.dumps({"дедлайн": "2026-09-09T20:00:00", "сообщение": "старое", "уведомлён": "false"}),
+        encoding="utf-8",
+    )
+    config = {"модель": "claude-sonnet-5", "дедлайн_такта_б": "среда, 20:00"}
+    отправить = Mock()
+    запустить_бота(
+        ТОКЕН, CHAT_ID, заметки, config, блоки,
+        получить_обновления=Mock(return_value=[]),
+        отправить_сообщение=отправить,
+        собрать_план=_план_с_фейковой_моделью,
+        now=Mock(return_value=datetime(2026, 9, 9, 20, 0, 1)),
+        макс_итераций=1,
+    )
+    отправить.assert_called_once()
+
+
+def test_предупреждение_о_дедлайне_печатается_один_раз_за_много_итераций(заметки, capsys):
+    config = {"модель": "claude-sonnet-5", "дедлайн_такта_б": "кривая строка без запятой"}
+    запустить_бота(
+        ТОКЕН, CHAT_ID, заметки, config, заметки / "blocks",
+        получить_обновления=Mock(return_value=[]),
+        макс_итераций=5,
+    )
+    вывод = capsys.readouterr()
+    assert вывод.err.count("не разобрался") == 1
+
+
+def test_переменная_окружения_пустой_строкой_не_считается_заданной(tmp_path, monkeypatch, capsys):
+    """Пустая строка сама по себе — falsy, и её ловит любая проверка `if
+    не значение`, даже без явного strip. Настоящая проверка на пробел:
+    строка из одних пробелов — TRUTHY в Python (непустая), и просто
+    `if не значение` её пропустит как «токен как будто есть» — только
+    явный `.strip()` внутри `_прочесть_переменную_окружения` ловит и её."""
+    заметки = _заметки_с_конфигом(tmp_path)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "   ")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "   ")
+    модуль = _загрузить_run_модуль()
+    with pytest.raises(SystemExit):
+        модуль.main(["бот", "--папка", str(заметки)])
+    вывод = capsys.readouterr()
+    assert "TELEGRAM_BOT_TOKEN" in вывод.err

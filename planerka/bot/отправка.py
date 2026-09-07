@@ -60,7 +60,6 @@
 ещё раз, уже отправленные темы не продублируются.
 """
 import json
-import os
 import unicodedata
 from pathlib import Path
 
@@ -69,11 +68,13 @@ from .темы import идентификатор
 
 try:  # planerka.bot.* — вызов из тестов и из пакета planerka
     from ..runner.decisions import строки_банка
+    from ..runner.файлы import записать_атомарно
     from ..runner.weeks import найти_файл_недели
 except ImportError:  # bot.* — вызов как в run.py, планерка добавляет свой
     # каталог в sys.path напрямую, и planerka тогда не общий предок для
     # bot и runner, а два независимых пакета верхнего уровня (см. run.py).
     from runner.decisions import строки_банка  # type: ignore[import-not-found]
+    from runner.файлы import записать_атомарно  # type: ignore[import-not-found]
     from runner.weeks import найти_файл_недели  # type: ignore[import-not-found]
 
 # Telegram меряет длину текста sendMessage в UTF-16 code units, не в
@@ -118,9 +119,7 @@ def _прочесть_отправленные(файл: Path) -> set[str]:
 
 def _записать_отправленные(файл: Path, идентификаторы: set[str]) -> None:
     содержимое = json.dumps({"отправлено": sorted(идентификаторы)}, ensure_ascii=False, indent=2)
-    временный = файл.with_suffix(файл.suffix + ".tmp")
-    временный.write_text(содержимое, encoding="utf-8")
-    os.replace(временный, файл)
+    записать_атомарно(файл, содержимое)
 
 
 def _длина_utf16(текст: str) -> int:

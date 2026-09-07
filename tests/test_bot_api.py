@@ -152,6 +152,35 @@ def test_ответить_на_нажатие_без_текста_не_отпр�
     assert отправленный == {"callback_query_id": "callback-2"}
 
 
+def test_ответить_на_нажатие_show_alert_передаётся_телеграму():
+    # Полоска-подсказка Телеграма гаснет за пару секунд — для отказов и
+    # перезаписи прежнего решения этого мало, человек может её не увидеть.
+    # show_alert=True просит Телеграм показать модальное окно, которое
+    # не исчезает само.
+    with patch("planerka.bot.api.urlopen") as urlopen:
+        urlopen.return_value = _успешный_ответ({"ok": True, "result": True})
+        ответить_на_нажатие(ТОКЕН, "callback-3", "внимание", show_alert=True)
+
+    запрос, _ = urlopen.call_args
+    отправленный = json.loads(запрос[0].data)
+    assert отправленный == {
+        "callback_query_id": "callback-3", "text": "внимание", "show_alert": True,
+    }
+
+
+def test_ответить_на_нажатие_без_show_alert_поле_не_отправляется():
+    # По умолчанию — полоска, а не модальное окно; поле show_alert вообще
+    # не должно попадать в запрос, если его не просили явно (иначе старые
+    # вызовы без него незаметно поменяли бы поведение у Телеграма).
+    with patch("planerka.bot.api.urlopen") as urlopen:
+        urlopen.return_value = _успешный_ответ({"ok": True, "result": True})
+        ответить_на_нажатие(ТОКЕН, "callback-4", "текст")
+
+    запрос, _ = urlopen.call_args
+    отправленный = json.loads(запрос[0].data)
+    assert "show_alert" not in отправленный
+
+
 def test_получить_обновления_пустой_список():
     with patch("planerka.bot.api.urlopen") as urlopen:
         urlopen.return_value = _успешный_ответ({"ok": True, "result": []})

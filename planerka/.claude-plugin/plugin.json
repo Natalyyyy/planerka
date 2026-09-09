@@ -1,5 +1,9 @@
 {
   "name": "planerka",
   "description": "Еженедельная контент-планёрка, которая собирается под вас при установке",
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "author": {
+    "name": "Наташа Дудина",
+    "url": "https://t.me/natashhhh"
+  }
 }

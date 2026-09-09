@@ -22,6 +22,12 @@ import pytest
     # где стоит имя автора. Больше нигде в репозитории их быть не должно.
     ("README.md", "Начальник тоже человек"),
     ("README.md", "natashhhh"),
+    # `author` в plugin.json — та же атрибуция, что в marketplace.json и
+    # LICENSE: её показывает `claude plugin details`, и без неё установщик
+    # ругается «No author information provided».
+    ("planerka/.claude-plugin/plugin.json", "Наташ"),
+    ("planerka/.claude-plugin/plugin.json", "Дудин"),
+    ("planerka/.claude-plugin/plugin.json", "natashhhh"),
 }
 
 

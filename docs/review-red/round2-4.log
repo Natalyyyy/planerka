@@ -1,0 +1,28 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_________ test_round2_4_plan_read_failure_does_not_regenerate[error0] __________
+tests/test_review_round2.py:108: in test_round2_4_plan_read_failure_does_not_regenerate
+    assert len(cli) == 1
+E   AssertionError: assert 3 == 1
+E    +  where 3 = len([((['claude', '--model', 'claude-sonnet-5', '-p'],), {'input': 'ядро плана\n\n## Взятые темы\n- Взятая тема', 'capture...p'],), {'input': 'ядро плана\n\n## Взятые темы\n- Взятая тема', 'capture_output': True, 'text': True, 'timeout': 900})])
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+----------------------------- Captured stderr call -----------------------------
+Неожиданная ошибка на проходе цикла, продолжаю: read failed
+Неожиданная ошибка на проходе цикла, продолжаю: read failed
+Неожиданная ошибка на проходе цикла, продолжаю: read failed
+_________ test_round2_4_plan_read_failure_does_not_regenerate[error1] __________
+tests/test_review_round2.py:108: in test_round2_4_plan_read_failure_does_not_regenerate
+    assert len(cli) == 1
+E   AssertionError: assert 3 == 1
+E    +  where 3 = len([((['claude', '--model', 'claude-sonnet-5', '-p'],), {'input': 'ядро плана\n\n## Взятые темы\n- Взятая тема', 'capture...p'],), {'input': 'ядро плана\n\n## Взятые темы\n- Взятая тема', 'capture_output': True, 'text': True, 'timeout': 900})])
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+----------------------------- Captured stderr call -----------------------------
+Неожиданная ошибка на проходе цикла, продолжаю: 'utf8' codec can't decode byte 0xff in position 0: invalid
+Неожиданная ошибка на проходе цикла, продолжаю: 'utf8' codec can't decode byte 0xff in position 0: invalid
+Неожиданная ошибка на проходе цикла, продолжаю: 'utf8' codec can't decode byte 0xff in position 0: invalid
+=========================== short test summary info ============================
+FAILED tests/test_review_round2.py::test_round2_4_plan_read_failure_does_not_regenerate[error0]
+FAILED tests/test_review_round2.py::test_round2_4_plan_read_failure_does_not_regenerate[error1]
+2 failed, 8 deselected in 0.05s

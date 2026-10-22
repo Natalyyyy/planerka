@@ -97,9 +97,9 @@ def test_три_нажатия_подряд_обработаны_смещени�
     ид3 = идентификатор("Тема три · откуда: чат")
 
     получить = Mock(side_effect=[
-        [{"update_id": 100, "callback_query": {"id": "c1", "data": f"{ид1}:b"}}],
-        [{"update_id": 101, "callback_query": {"id": "c2", "data": f"{ид2}:n"}}],
-        [{"update_id": 102, "callback_query": {"id": "c3", "data": f"{ид3}:d"}}],
+        [{"update_id": 100, "callback_query": {"from": {"id": CHAT_ID}, "message": {"chat": {"id": CHAT_ID}}, "id": "c1", "data": f"{ид1}:b"}}],
+        [{"update_id": 101, "callback_query": {"from": {"id": CHAT_ID}, "message": {"chat": {"id": CHAT_ID}}, "id": "c2", "data": f"{ид2}:n"}}],
+        [{"update_id": 102, "callback_query": {"from": {"id": CHAT_ID}, "message": {"chat": {"id": CHAT_ID}}, "id": "c3", "data": f"{ид3}:d"}}],
     ])
 
     with patch("planerka.bot.приём.ответить_на_нажатие"):
@@ -153,7 +153,7 @@ def test_обновление_без_callback_query_игнорируется(з�
 def test_обработка_упала_смещение_всё_равно_сдвигается(заметки):
     принять = Mock(side_effect=RuntimeError("бах"))
     получить = Mock(side_effect=[
-        [{"update_id": 10, "callback_query": {"id": "c1", "data": "что-то"}}],
+        [{"update_id": 10, "callback_query": {"from": {"id": CHAT_ID}, "message": {"chat": {"id": CHAT_ID}}, "id": "c1", "data": "что-то"}}],
         [],
     ])
     запустить_бота(
@@ -666,7 +666,7 @@ def test_смещение_сохраняется_после_ошибки_сет�
     неподтверждённый хвост заново, и человек получил бы повторные ответы на
     уже сделанные нажатия."""
     получить = Mock(side_effect=[
-        [{"update_id": 50, "callback_query": {"id": "c1", "data": "x"}}],
+        [{"update_id": 50, "callback_query": {"from": {"id": CHAT_ID}, "message": {"chat": {"id": CHAT_ID}}, "id": "c1", "data": "x"}}],
         ОшибкаСети("обрыв"),
         [],
     ])
@@ -897,9 +897,9 @@ def test_пачка_из_нескольких_обновлений_обраба�
 
     получить = Mock(side_effect=[
         [
-            {"update_id": 200, "callback_query": {"id": "c1", "data": f"{ид1}:b"}},
-            {"update_id": 201, "callback_query": {"id": "c2", "data": f"{ид2}:n"}},
-            {"update_id": 202, "callback_query": {"id": "c3", "data": f"{ид3}:d"}},
+            {"update_id": 200, "callback_query": {"from": {"id": CHAT_ID}, "message": {"chat": {"id": CHAT_ID}}, "id": "c1", "data": f"{ид1}:b"}},
+            {"update_id": 201, "callback_query": {"from": {"id": CHAT_ID}, "message": {"chat": {"id": CHAT_ID}}, "id": "c2", "data": f"{ид2}:n"}},
+            {"update_id": 202, "callback_query": {"from": {"id": CHAT_ID}, "message": {"chat": {"id": CHAT_ID}}, "id": "c3", "data": f"{ид3}:d"}},
         ],
         [],
     ])
@@ -962,7 +962,7 @@ def test_элемент_пачки_не_словарь_остальные_всё
     путь = _записать_неделю(заметки, "## Банк тем\n\n- [ ] Тема · откуда: чат\n")
     ид = идентификатор("Тема · откуда: чат")
     получить = Mock(return_value=[
-        {"update_id": 1, "callback_query": {"id": "c1", "data": f"{ид}:b"}},
+        {"update_id": 1, "callback_query": {"from": {"id": CHAT_ID}, "message": {"chat": {"id": CHAT_ID}}, "id": "c1", "data": f"{ид}:b"}},
         "мусор, не словарь",
         42,
         None,
@@ -979,7 +979,7 @@ def test_элемент_пачки_не_словарь_остальные_всё
 def test_update_id_не_число_не_роняет_и_не_сдвигает_смещение(заметки):
     принять = Mock()
     получить = Mock(side_effect=[
-        [{"update_id": "не число", "callback_query": {"id": "c1", "data": "x"}}],
+        [{"update_id": "не число", "callback_query": {"from": {"id": CHAT_ID}, "message": {"chat": {"id": CHAT_ID}}, "id": "c1", "data": "x"}}],
         [],
     ])
     запустить_бота(
@@ -1397,7 +1397,7 @@ def test_run_темы_передаёт_токен_и_chat_id_в_такт(tmp_pat
 
 def test_смещение_сохраняется_после_конфликта_409(заметки):
     получить = Mock(side_effect=[
-        [{"update_id": 70, "callback_query": {"id": "c1", "data": "x"}}],
+        [{"update_id": 70, "callback_query": {"from": {"id": CHAT_ID}, "message": {"chat": {"id": CHAT_ID}}, "id": "c1", "data": "x"}}],
         ОшибкаКонфликта("конфликт"),
         [],
     ])

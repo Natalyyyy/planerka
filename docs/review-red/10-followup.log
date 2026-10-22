@@ -1,0 +1,16 @@
+.F.....F......                                                           [100%]
+=================================== FAILURES ===================================
+______________ test_takt_b_archive_is_idempotent_across_two_runs _______________
+tests/test_review_sources.py:55: in test_takt_b_archive_is_idempotent_across_two_runs
+    assert sum("Отклонённая · откуда: тест" in line for line in lines) == 1
+E   assert 0 == 1
+E    +  where 0 = sum(<generator object test_takt_b_archive_is_idempotent_across_two_runs.<locals>.<genexpr> at 0x10a756190>)
+_________________ test_collect_warns_when_directory_scan_fails _________________
+tests/test_review_sources.py:141: in test_collect_warns_when_directory_scan_fails
+    real_scandir = collect_module.os.scandir
+                   ^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'planerka.runner.collect' has no attribute 'os'
+=========================== short test summary info ============================
+FAILED tests/test_review_sources.py::test_takt_b_archive_is_idempotent_across_two_runs
+FAILED tests/test_review_sources.py::test_collect_warns_when_directory_scan_fails
+2 failed, 12 passed in 0.18s

@@ -1,0 +1,28 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+__________ test_round2_2_legacy_marker_preserves_completed_plan[True] __________
+tests/test_review_round2.py:60: in test_round2_2_legacy_marker_preserves_completed_plan
+    assert cli == []
+E   AssertionError: assert [((['claude',...meout': 900})] == []
+E     
+E     Left contains one more item: ((['claude', '--model', 'claude-sonnet-5', '-p'],), {'input': 'ядро плана\n\n## Взятые темы\n- Взятая тема', 'capture_output': True, 'text': True, 'timeout': 900})
+E     Use -v to get more diff
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+----------------------------- Captured stderr call -----------------------------
+Не удалось отправить уведомление о дедлайне, попробую снова: response lost after delivery
+_________ test_round2_2_legacy_marker_preserves_completed_plan[False] __________
+tests/test_review_round2.py:60: in test_round2_2_legacy_marker_preserves_completed_plan
+    assert cli == []
+E   AssertionError: assert [((['claude',...meout': 900})] == []
+E     
+E     Left contains one more item: ((['claude', '--model', 'claude-sonnet-5', '-p'],), {'input': 'ядро плана\n\n## Взятые темы\n- Взятая тема', 'capture_output': True, 'text': True, 'timeout': 900})
+E     Use -v to get more diff
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+----------------------------- Captured stderr call -----------------------------
+Не удалось отправить уведомление о дедлайне, попробую снова: response lost after delivery
+=========================== short test summary info ============================
+FAILED tests/test_review_round2.py::test_round2_2_legacy_marker_preserves_completed_plan[True]
+FAILED tests/test_review_round2.py::test_round2_2_legacy_marker_preserves_completed_plan[False]
+2 failed, 8 deselected in 0.06s

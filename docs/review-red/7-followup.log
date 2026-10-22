@@ -1,0 +1,12 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_cli_429_и_500_повторяются_через_реальный_run_claude ___________
+tests/test_review_deadline.py:171: in test_cli_429_и_500_повторяются_через_реальный_run_claude
+    assert len(cli) == 3
+E   AssertionError: assert 1 == 3
+E    +  where 1 = len([((['claude', '--model', 'claude-sonnet-5', '-p'],), {'input': 'ядро плана\n\n## Взятые темы\n- Взятая тема', 'capture_output': True, 'text': True, 'timeout': 900})])
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+=========================== short test summary info ============================
+FAILED tests/test_review_deadline.py::test_cli_429_и_500_повторяются_через_реальный_run_claude
+1 failed in 0.32s

@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_round2_3_legacy_journal_refreshes_buttons_after_lost_response ______
+tests/test_review_round2.py:81: in test_round2_3_legacy_journal_refreshes_buttons_after_lost_response
+    with pytest.raises(ОшибкаСети):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ОшибкаСети
+=========================== short test summary info ============================
+FAILED tests/test_review_round2.py::test_round2_3_legacy_journal_refreshes_buttons_after_lost_response
+1 failed, 9 deselected in 0.04s

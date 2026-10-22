@@ -72,6 +72,8 @@ newlines: при чтении `\r\n` схлопывается в `\n`, при з
 их в гит один за другим.
 """
 import os
+import fcntl
+from contextlib import contextmanager
 import stat
 import tempfile
 from pathlib import Path
@@ -138,3 +140,14 @@ def прочесть_как_есть(путь: Path) -> str:
     """
     with open(путь, "r", encoding="utf-8", newline="") as поток:
         return поток.read()
+
+
+@contextmanager
+def блокировка_файла(путь: Path):
+    """Общий lock на проверку и запись; постоянный inode переживает replace."""
+    with путь.with_name(путь.name + ".lock").open("a") as поток:
+        fcntl.flock(поток, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(поток, fcntl.LOCK_UN)

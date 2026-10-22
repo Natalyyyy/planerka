@@ -1,0 +1,18 @@
+FF..                                                                     [100%]
+=================================== FAILURES ===================================
+____________ test_archive_parallel_updates_keep_both_topics[False] _____________
+tests/test_round2_concurrency.py:42: in test_archive_parallel_updates_keep_both_topics
+    assert text.count('- Topic B') == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = <built-in method count of str object at 0x108b6fe10>('- Topic B')
+E    +    where <built-in method count of str object at 0x108b6fe10> = '# Отклонённые темы\n- Topic A · 2026-10-19\n'.count
+_____________ test_archive_parallel_updates_keep_both_topics[True] _____________
+tests/test_round2_concurrency.py:42: in test_archive_parallel_updates_keep_both_topics
+    assert text.count('- Topic B') == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = <built-in method count of str object at 0x108b61550>('- Topic B')
+E    +    where <built-in method count of str object at 0x108b61550> = '# Отклонённые темы\n- Existing\n- Topic A · 2026-10-19\n'.count
+=========================== short test summary info ============================
+FAILED tests/test_round2_concurrency.py::test_archive_parallel_updates_keep_both_topics[False]
+FAILED tests/test_round2_concurrency.py::test_archive_parallel_updates_keep_both_topics[True]
+2 failed, 2 passed, 3 deselected in 0.76s

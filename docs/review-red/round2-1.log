@@ -1,0 +1,44 @@
+FFFF.                                                                    [100%]
+=================================== FAILURES ===================================
+_______________ test_round2_1_reject_foreign_callback[42-999999] _______________
+tests/test_review_round2.py:26: in test_round2_1_reject_foreign_callback
+    assert week.read_bytes() == before
+E   AssertionError: assert b'<!-- planer...xb0\xd1\x82\n' == b'<!-- planer...xb0\xd1\x82\n'
+E     
+E     At index 80 diff: b'-' != b'x'
+E     Use -v to get more diff
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+_______________ test_round2_1_reject_foreign_callback[999999-42] _______________
+tests/test_review_round2.py:26: in test_round2_1_reject_foreign_callback
+    assert week.read_bytes() == before
+E   AssertionError: assert b'<!-- planer...xb0\xd1\x82\n' == b'<!-- planer...xb0\xd1\x82\n'
+E     
+E     At index 80 diff: b'-' != b'x'
+E     Use -v to get more diff
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+______________ test_round2_1_reject_foreign_callback[None-999999] ______________
+tests/test_review_round2.py:26: in test_round2_1_reject_foreign_callback
+    assert week.read_bytes() == before
+E   AssertionError: assert b'<!-- planer...xb0\xd1\x82\n' == b'<!-- planer...xb0\xd1\x82\n'
+E     
+E     At index 80 diff: b'-' != b'x'
+E     Use -v to get more diff
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+______________ test_round2_1_reject_foreign_callback[999999-None] ______________
+tests/test_review_round2.py:26: in test_round2_1_reject_foreign_callback
+    assert week.read_bytes() == before
+E   AssertionError: assert b'<!-- planer...xb0\xd1\x82\n' == b'<!-- planer...xb0\xd1\x82\n'
+E     
+E     At index 80 diff: b'-' != b'x'
+E     Use -v to get more diff
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+=========================== short test summary info ============================
+FAILED tests/test_review_round2.py::test_round2_1_reject_foreign_callback[42-999999]
+FAILED tests/test_review_round2.py::test_round2_1_reject_foreign_callback[999999-42]
+FAILED tests/test_review_round2.py::test_round2_1_reject_foreign_callback[None-999999]
+FAILED tests/test_review_round2.py::test_round2_1_reject_foreign_callback[999999-None]
+4 failed, 1 passed, 5 deselected in 0.72s

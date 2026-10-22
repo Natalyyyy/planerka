@@ -1,0 +1,22 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+______________ test_selection_conflict_retries_current_choices[1] ______________
+tests/test_second_review.py:37: in test_selection_conflict_retries_current_choices
+    assert marker(week)['сборка_готова'] is False
+E   assert True is False
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+----------------------------- Captured stderr call -----------------------------
+Не удалось отправить уведомление о дедлайне, попробую снова: response lost after delivery
+______________ test_selection_conflict_retries_current_choices[4] ______________
+tests/test_second_review.py:37: in test_selection_conflict_retries_current_choices
+    assert marker(week)['сборка_готова'] is False
+E   assert True is False
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+----------------------------- Captured stderr call -----------------------------
+Не удалось отправить уведомление о дедлайне, попробую снова: response lost after delivery
+=========================== short test summary info ============================
+FAILED tests/test_second_review.py::test_selection_conflict_retries_current_choices[1]
+FAILED tests/test_second_review.py::test_selection_conflict_retries_current_choices[4]
+2 failed, 2 deselected in 0.17s

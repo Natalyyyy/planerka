@@ -9,6 +9,10 @@
 import subprocess
 
 
+class ОшибкаВызоваМодели(RuntimeError):
+    """CLI завершился с ненулевым кодом — причина может быть временной."""
+
+
 def run_claude(prompt: str, model: str, timeout_sec: int = 900) -> str:
     готово = subprocess.run(
         ["claude", "--model", model, "-p"],
@@ -16,5 +20,5 @@ def run_claude(prompt: str, model: str, timeout_sec: int = 900) -> str:
         capture_output=True, text=True, timeout=timeout_sec,
     )
     if готово.returncode != 0:
-        raise RuntimeError(f"claude вернул {готово.returncode}: {готово.stderr[:400]}")
+        raise ОшибкаВызоваМодели(f"claude вернул {готово.returncode}: {готово.stderr[:400]}")
     return готово.stdout

@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_cli_resumes_partial_send_and_skips_already_sent_topics __________
+tests/test_review_resume.py:66: in test_cli_resumes_partial_send_and_skips_already_sent_topics
+    assert error.value.code == 1
+E   assert 2 == 1
+E    +  where 2 = SystemExit(2).code
+E    +    where SystemExit(2) = <ExceptionInfo SystemExit(2) tblen=7>.value
+----------------------------- Captured stderr call -----------------------------
+usage: run.py [-h] [--папка ПАПКА] [--пересобрать] [--обойти-блокировку]
+              {план,темы,бот,проверить-бота,узнать-chat-id,защитить-env}
+run.py: error: argument такт: invalid choice: 'дослать-темы' (choose from 'план', 'темы', 'бот', 'проверить-бота', 'узнать-chat-id', 'защитить-env')
+=========================== short test summary info ============================
+FAILED tests/test_review_resume.py::test_cli_resumes_partial_send_and_skips_already_sent_topics
+1 failed in 0.11s

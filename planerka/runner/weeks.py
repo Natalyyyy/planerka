@@ -10,10 +10,11 @@
 Всё остальное ищет **существующий** файл.
 """
 import re
+import hashlib
 from datetime import date
 from pathlib import Path
 
-from .decisions import parse_decisions
+from .decisions import parse_decisions, строки_банка
 
 ИМЯ = re.compile(r"^неделя – (\d{4})-(\d{2})-(\d{2})\.md$")
 # «Разобрать решение» — значит поставить [x] или [-]. Пустая галочка и
@@ -102,3 +103,12 @@ def работа_человека(текст: str) -> dict[str, list[str]]:
         if ПРОСТАВЛЕННАЯ.match(голая):
             отметки.append(голая)
     return {"отметки": отметки, "разделы": разделы}
+
+
+def версия_банка(текст: str) -> str:
+    """Версия генерации; для прежних файлов — хеш тем без отметок."""
+    маркер = re.search(r"<!-- planerka-bank: ([a-f0-9]{32}) -->", текст)
+    if маркер:
+        return маркер[1]
+    темы = "\n".join(з["содержимое"] for з in строки_банка(текст))
+    return hashlib.sha256(темы.encode("utf-8")).hexdigest()[:32]

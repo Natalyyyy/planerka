@@ -1,0 +1,13 @@
+F..                                                                      [100%]
+=================================== FAILURES ===================================
+________________ test_parallel_delivery_serializes_entire_batch ________________
+tests/test_round2_concurrency.py:93: in test_parallel_delivery_serializes_entire_batch
+    assert delivered == ['Topic A', 'Topic B']
+E   AssertionError: assert ['Topic A', '...B', 'Topic B'] == ['Topic A', 'Topic B']
+E     
+E     At index 1 diff: 'Topic A' != 'Topic B'
+E     Left contains 2 more items, first extra item: 'Topic B'
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED tests/test_round2_concurrency.py::test_parallel_delivery_serializes_entire_batch
+1 failed, 2 passed, 4 deselected in 0.14s

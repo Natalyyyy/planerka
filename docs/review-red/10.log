@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_collect_warns_for_missing_and_unreadable_sources _____________
+tests/test_review_sources.py:42: in test_collect_warns_for_missing_and_unreadable_sources
+    with pytest.warns(UserWarning) as captured:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT WARN. No warnings of type (<class 'UserWarning'>,) were emitted.
+E    Emitted warnings: [].
+=========================== short test summary info ============================
+FAILED tests/test_review_sources.py::test_collect_warns_for_missing_and_unreadable_sources
+1 failed in 0.23s

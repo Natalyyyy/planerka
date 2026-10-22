@@ -1,0 +1,27 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_______________ test_archive_failure_preserves_saved_plan[False] _______________
+tests/test_second_review.py:79: in test_archive_failure_preserves_saved_plan
+    assert len(calls) == 1
+E   AssertionError: assert 3 == 1
+E    +  where 3 = len(['ядро плана\n\n## Взятые темы\n- Взятая тема', 'ядро плана\n\n## Взятые темы\n- Взятая тема', 'ядро плана\n\n## Взятые темы\n- Взятая тема'])
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+----------------------------- Captured stderr call -----------------------------
+Временный сбой сборки плана (1/3), повторю на следующем проходе: archive unavailable
+Временный сбой сборки плана (2/3), повторю на следующем проходе: archive unavailable
+Не удалось отправить уведомление о дедлайне, попробую снова: response lost after delivery
+_______________ test_archive_failure_preserves_saved_plan[True] ________________
+tests/test_second_review.py:79: in test_archive_failure_preserves_saved_plan
+    assert len(calls) == 1
+E   AssertionError: assert 2 == 1
+E    +  where 2 = len(['ядро плана\n\n## Взятые темы\n- Взятая тема', 'ядро плана\n\n## Взятые темы\n- Взятая тема'])
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+----------------------------- Captured stderr call -----------------------------
+Временный сбой сборки плана (1/3), повторю на следующем проходе: archive response lost
+Не удалось отправить уведомление о дедлайне, попробую снова: response lost after delivery
+=========================== short test summary info ============================
+FAILED tests/test_second_review.py::test_archive_failure_preserves_saved_plan[False]
+FAILED tests/test_second_review.py::test_archive_failure_preserves_saved_plan[True]
+2 failed, 2 deselected in 0.08s

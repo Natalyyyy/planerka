@@ -1,0 +1,19 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+______ test_временный_сбой_llm_повторяет_takt_b_и_успех_закрывает_дедлайн ______
+tests/test_review_deadline.py:129: in test_временный_сбой_llm_повторяет_takt_b_и_успех_закрывает_дедлайн
+    assert "## Неделя по дням" in содержимое
+E   AssertionError: assert '## Неделя по дням' in '<!-- planerka-bank: 11111111111111111111111111111111 -->\n## Банк тем\n\n- [x] Взятая тема · откуда: чат\n'
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+______________ test_временный_сбой_llm_ограничен_тремя_попытками _______________
+tests/test_review_deadline.py:154: in test_временный_сбой_llm_ограничен_тремя_попытками
+    assert len(очередь_cli) == 3
+E   AssertionError: assert 1 == 3
+E    +  where 1 = len([((['claude', '--model', 'claude-sonnet-5', '-p'],), {'input': 'ядро плана\n\n## Взятые темы\n- Взятая тема', 'capture_output': True, 'text': True, 'timeout': 900})])
+----------------------------- Captured stdout call -----------------------------
+Бот запущен — слушаю Телеграм.
+=========================== short test summary info ============================
+FAILED tests/test_review_deadline.py::test_временный_сбой_llm_повторяет_takt_b_и_успех_закрывает_дедлайн
+FAILED tests/test_review_deadline.py::test_временный_сбой_llm_ограничен_тремя_попытками
+2 failed in 0.18s
